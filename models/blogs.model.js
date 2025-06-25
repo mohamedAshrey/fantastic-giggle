@@ -1,13 +1,13 @@
 const mongoose = require('mongoose');
 
 const blogSchema = new mongoose.Schema({
-    title: {type: String, required: true},
+    title: { type: String, required: true },
     content: String,
     author: String,
     createdAt: {
         type: Date,
-        default: Date.now
-    }
+        default: Date.now,
+    },
 });
 
-module.exports = mongoose.model('Blog',blogSchema);
+module.exports = mongoose.model('Blog', blogSchema);

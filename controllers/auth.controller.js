@@ -1,37 +1,193 @@
-const jwt = require('jsonwebtoken');
-const User = require('../models/users.model');  // تأكد من مسار الموديل عندك
+const bcrypt = require('bcryptjs');
+const nodemailer = require('nodemailer');
 
-// callback جوجل بعد المصادقة
-exports.googleCallback = async (req, res, next) => {
-    try {
-        // Passport هيحط بيانات المستخدم في req.user
-        const user = req.user;
+const asyncWrapper = require('../middlewares/asyncWrapper');
+const generateJwt = require('../utils/generate.jwt');
+const AppError = require('../utils/appError');
+const httpStatusText = require('../utils/httpStatusText');
+const User = require('../models/users.model');
+const userRoles = require('../utils/userRoles');
 
-        if (!user) {
-            return res.status(401).json({ status: 'fail', message: 'User not authenticated' });
-        }
+const pendingRegistrations = new Map();
 
-        // بناء الـ payload للتوكن (تحط بيانات بسيطة تكون كافية للتحقق)
-        const payload = {
-            id: user._id,
-            email: user.email
-        };
+const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+    },
+    tls: {
+        rejectUnauthorized: false,
+    },
+});
 
-        // إنشاء توكن JWT
-        const token = jwt.sign(payload, process.env.JWT_SECRET_KEY, { expiresIn: '1h' });
+const requestRegistration = asyncWrapper(async (req, res, next) => {
+    const { firstName, lastName, email, password, role, avatar } = req.body;
 
-        // ترجع الرد للعميل (ويب أو موبايل)
-        return res.json({
-            status: 'success',
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+        return next(AppError.create('Email already in use', 400, httpStatusText.FAIL));
+    }
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = Date.now() + 5 * 60 * 1000;
+
+    pendingRegistrations.set(email, {
+        firstName,
+        lastName,
+        email,
+        password,
+        role: role || userRoles.USER,
+        avatar: req.file ? req.file.filename : 'defaultPic.jpg',
+        otp,
+        expiresAt,
+    });
+
+    await transporter.sendMail({
+        from: process.env.EMAIL_USER,
+        to: email,
+        subject: ' Verify Your Email from PowerPro',
+        text: `Hi ${firstName},\n\nYour OTP is: ${otp}. It expires in 5 minutes.\n\n Please do not share this code with anyone.`,
+    });
+
+    res.json({ message: 'OTP sent to your email' });
+});
+
+// 2. Verify OTP and Create User
+const confirmRegistration = asyncWrapper(async (req, res, next) => {
+    const { email, otp } = req.body;
+
+    const pending = pendingRegistrations.get(email);
+    if (!pending || pending.otp !== otp || pending.expiresAt < Date.now()) {
+        return next(AppError.create('Invalid or expired OTP', 400, httpStatusText.FAIL));
+    }
+
+    const hashedPassword = await bcrypt.hash(pending.password, 10);
+
+    const newUser = await User.create({
+        firstName: pending.firstName,
+        lastName: pending.lastName,
+        email,
+        password: hashedPassword,
+        avatar: pending.avatar,
+        role: pending.role,
+        emailVerified: true,
+    });
+
+    const token = await generateJwt({
+        email: newUser.email,
+        id: newUser._id,
+        role: newUser.role,
+    });
+
+    newUser.token = token;
+    await newUser.save();
+    pendingRegistrations.delete(email);
+
+    res.status(201).json({ message: 'Registration complete', token });
+});
+
+const forgotPassword = asyncWrapper(async (req, res, next) => {
+    const { email } = req.body;
+
+    const user = await User.findOne({ email });
+    if (!user) {
+        return next(AppError.create('User not found', 404, httpStatusText.FAIL));
+    }
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = Date.now() + 5 * 60 * 1000;
+
+    pendingRegistrations.set(email, {
+        otp,
+        expiresAt,
+        purpose: 'reset-password',
+    });
+
+    await transporter.sendMail({
+        from: process.env.EMAIL_USER,
+        to: email,
+        subject: 'Password Reset Code From PowerPro',
+        text: `Your OTP to reset password is ${otp}. It expires in 5 minutes.`,
+    });
+
+    res.json({ message: 'OTP sent to your email' });
+});
+
+const resetPassword = asyncWrapper(async (req, res, next) => {
+    const { email, otp, newPassword } = req.body;
+
+    const pending = pendingRegistrations.get(email);
+    if (
+        !pending ||
+        pending.otp !== otp ||
+        pending.expiresAt < Date.now() ||
+        pending.purpose !== 'reset-password'
+    ) {
+        return next(AppError.create('Invalid or expired OTP', 400, httpStatusText.FAIL));
+    }
+
+    const user = await User.findOne({ email });
+    if (!user) {
+        return next(AppError.create('User not found', 404, httpStatusText.FAIL));
+    }
+
+    user.password = await bcrypt.hash(newPassword, 10);
+    await user.save();
+    pendingRegistrations.delete(email);
+
+    res.json({ message: 'Password reset successful' });
+});
+
+const login = asyncWrapper(async (req, res, next) => {
+    const { email, password } = req.body;
+
+    const user = await User.findOne({ email });
+    if (!user) {
+        return next(AppError.create('User not found', 404, httpStatusText.FAIL));
+    }
+
+    if (!user.emailVerified) {
+        return next(AppError.create('Email not verified', 403, httpStatusText.FAIL));
+    }
+
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+        return next(AppError.create('Invalid password', 401, httpStatusText.FAIL));
+    }
+
+    const token = await generateJwt({
+        email: user.email,
+        id: user._id,
+        role: user.role,
+        firstName: user.firstName,
+        lastName: user.lastName,
+    });
+
+    user.token = token;
+    await user.save();
+
+    res.status(200).json({
+        status: httpStatusText.SUCCESS,
+        message: 'Login successful',
+        data: {
             token,
             user: {
                 id: user._id,
                 email: user.email,
                 firstName: user.firstName,
-                lastName: user.lastName
-            }
-        });
-    } catch (error) {
-        next(error);
-    }
+                lastName: user.lastName,
+                avatar: user.avatar,
+                role: user.role,
+            },
+        },
+    });
+});
+
+module.exports = {
+    requestRegistration,
+    confirmRegistration,
+    forgotPassword,
+    resetPassword,
+    login,
 };
