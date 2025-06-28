@@ -10,7 +10,6 @@ const contactWithUs = asyncWrapper(async (req, res, next) => {
     if (!subject || !message) {
         return next(AppError.create('Subject and message are required', 400, httpStatusText.FAIL));
     }
-    console.log(req.user);
     const email = req.user.email;
     const name = req.user.firstName + ' ' + req.user.lastName;
 
@@ -28,19 +27,31 @@ const contactWithUs = asyncWrapper(async (req, res, next) => {
     });
 
     await transporter.sendMail({
-        from: email,
-        to: process.env.EMAIL_USER,
-        subject: `[CONTACT] ${subject}`,
+        from: `"Support Team" <${process.env.EMAIL_USER}>`,
+        to: email,
+        subject: 'Power Pro Support',
         html: `
-        <p><strong>User:</strong> ${name}</p>
-        <p><strong>Email:</strong> ${email}</p>
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; border: 1px solid #e0e0e0; border-radius: 8px; padding: 24px; background-color: #ffffff;">
+        <h2 style="color: #333; font-weight: normal;">Hello ${name},</h2>
+        <p style="font-size: 15px; color: #444;">
+        Thank you for reaching out. We've received your message and will get back to you as soon as possible.
+        </p>
+        <h3 style="margin-top: 30px; color: #555;">Message details:</h3>
+        <p><strong>Subject:</strong> ${subject}</p>
         <p><strong>Message:</strong><br>${message}</p>
-        `,
+        <p style="margin-top: 40px; font-size: 14px; color: #888;">
+        This is an automated confirmation. No action is required.
+        </p>
+        <p style="font-size: 12px; color: #aaa; text-align: center; margin-top: 50px;">
+        © ${new Date().getFullYear()} MyApp. All rights reserved.
+        </p>
+</div>
+`,
     });
 
     res.status(200).json({
         status: httpStatusText.SUCCESS,
-        message: 'Message sent & saved successfully',
+        message: 'We will comunication with you ASAP',
         data: null,
     });
 });
