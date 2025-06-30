@@ -46,8 +46,31 @@ const requestRegistration = asyncWrapper(async (req, res, next) => {
     await transporter.sendMail({
         from: process.env.EMAIL_USER,
         to: email,
-        subject: ' Verify Your Email from PowerPro',
-        text: `Hi ${firstName},\n\nYour OTP is: ${otp}. It expires in 5 minutes.\n\n Please do not share this code with anyone.`,
+        subject: 'Your PowerPro Verification Code',
+        html: `
+        <table style="max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eee; border-radius: 8px; font-family: Arial, sans-serif; background-color: #ffffff;">
+            <tr>
+                <td>
+                    <h2 style="color: #2e86de; text-align: center;">PowerPro</h2>
+                    <p style="font-size: 16px;">Hello <strong>${firstName}</strong>,</p>
+                    <p style="font-size: 15px; line-height: 1.5;">
+                        Thank you for registering with <strong>PowerPro</strong>.<br/>
+                        Please use the OTP below to verify your email address:
+                    </p>
+                    <div style="margin: 30px 0; text-align: center;">
+                        <span style="font-size: 24px; font-weight: bold; color: #ffffff; background-color: #2e86de; padding: 10px 20px; border-radius: 6px; display: inline-block; letter-spacing: 2px;">
+                            ${otp}
+                        </span>
+                    </div>
+                    <p style="font-size: 14px; color: #888;">This OTP will expire in <strong>5 minutes</strong>.</p>
+                    <p style="font-size: 13px; color: #999;">
+                        If you did not request this, please ignore this message.
+                    </p>
+                    <p style="margin-top: 30px;">Best regards,<br/><strong>PowerPro Team</strong></p>
+                </td>
+            </tr>
+        </table>
+    `,
     });
 
     res.json({ message: 'OTP sent to your email' });
@@ -108,7 +131,28 @@ const forgotPassword = asyncWrapper(async (req, res, next) => {
         from: process.env.EMAIL_USER,
         to: email,
         subject: 'Password Reset Code From PowerPro',
-        text: `Your OTP to reset password is ${otp}. It expires in 5 minutes.`,
+        html: `
+        <table style="max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eee; border-radius: 8px; font-family: Arial, sans-serif; background-color: #ffffff;">
+            <tr>
+                <td>
+                    <h2 style="color:rgb(46, 69, 222); text-align: center;">PowerPro</h2>
+                    <p style="font-size: 15px; line-height: 1.5;">
+                        Please use the OTP below to verify your email address:
+                    </p>
+                    <div style="margin: 30px 0; text-align: center;">
+                        <span style="font-size: 24px; font-weight: bold; color: #ffffff; background-color: #2e86de; padding: 10px 20px; border-radius: 6px; display: inline-block; letter-spacing: 2px;">
+                            ${otp}
+                        </span>
+                    </div>
+                    <p style="font-size: 14px; color: #888;">This OTP will expire in <strong>5 minutes</strong>.</p>
+                    <p style="font-size: 13px; color: #999;">
+                        If you did not request this, please ignore this message.
+                    </p>
+                    <p style="margin-top: 30px;">Best regards,<br/><strong>PowerPro Team</strong></p>
+                </td>
+            </tr>
+        </table>
+    `,
     });
 
     res.json({ message: 'OTP sent to your email' });

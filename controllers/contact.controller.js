@@ -39,11 +39,8 @@ const contactWithUs = asyncWrapper(async (req, res, next) => {
         <h3 style="margin-top: 30px; color: #555;">Message details:</h3>
         <p><strong>Subject:</strong> ${subject}</p>
         <p><strong>Message:</strong><br>${message}</p>
-        <p style="margin-top: 40px; font-size: 14px; color: #888;">
-        This is an automated confirmation. No action is required.
-        </p>
         <p style="font-size: 12px; color: #aaa; text-align: center; margin-top: 50px;">
-        © ${new Date().getFullYear()} MyApp. All rights reserved.
+        © ${new Date().getFullYear()} Powerpro. All rights reserved.
         </p>
 </div>
 `,

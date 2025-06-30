@@ -3,8 +3,6 @@ const asyncWrapper = require('../middlewares/asyncWrapper');
 const httpStatusText = require('../utils/httpStatusText');
 const AppError = require('../utils/appError');
 const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const generateJwt = require('../utils/generate.jwt');
 const path = require('path');
 const fs = require('fs').promises;
 
@@ -21,9 +19,10 @@ const getAllUsers = asyncWrapper(async (req, res) => {
 
 const getProfile = asyncWrapper(async (req, res, next) => {
     const userId = req.user.id;
-    const user = await User.findById(userId).select('firstName lastName email avatar');
+    const user = await User.findById(userId).select('firstName lastName email avatar role');
     if (!user) {
-        return res.status(404).json({ message: 'User not found' });
+        const error = AppError.create('User not found', 400, httpStatusText.FAIL);
+        return next(error);
     }
     res.json({ status: httpStatusText.SUCCESS, data: { user } });
 });
@@ -34,10 +33,16 @@ const changePassword = asyncWrapper(async (req, res, next) => {
 
     const user = await User.findById(userId);
 
-    if (!user) return res.status(400).json({ message: 'User not found' });
-
+    if (!user) {
+        const error = AppError.create('User not found', 400, httpStatusText.FAIL);
+        return next(error);
+    }
     const isMatching = await bcrypt.compare(oldPassword, user.password);
-    if (!isMatching) return res.status(400).json({ message: 'Old Password is incorrect' });
+
+    if (!isMatching) {
+        const error = AppError.create('Old Password is incorrect', 400, httpStatusText.FAIL);
+        return next(error);
+    }
 
     user.password = await bcrypt.hash(newPassword, 8);
     await user.save();
@@ -61,10 +66,17 @@ const updatedName = asyncWrapper(async (req, res, next) => {
 const updatedAvatar = asyncWrapper(async (req, res, next) => {
     const userId = req.user.id;
     const user = await User.findById(userId);
-    if (!user) return res.status(404).json({ message: 'User not found' });
-
+    if (!user) {
+        const error = AppError.create('User not found', 400, httpStatusText.FAIL);
+        return next(error);
+    }
     const newImage = req.file ? req.file.filename : null;
-    if (!newImage) return res.status(400).json({ message: 'No image uploaded' });
+
+    if (!newImage) {
+        const error = AppError.create('No image uploaded', 400, httpStatusText.FAIL);
+        return next(error);
+    }
+
     const oldImage = user.avatar;
 
     if (oldImage && oldImage !== 'defaultPic.jpg') {
@@ -77,7 +89,7 @@ const updatedAvatar = asyncWrapper(async (req, res, next) => {
 
     const imageUrl = `${req.protocol}://${req.get('host')}/uploads/${user.avatar}`;
     res.json({
-        message: '✅ Profile image updated successfully',
+        message: 'Profile image updated successfully',
         avatar: imageUrl,
     });
 });
