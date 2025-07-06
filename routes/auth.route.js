@@ -41,4 +41,8 @@ router.post('/forgot-password', authController.forgotPassword);
 
 router.post('/reset-password', authController.resetPassword);
 
+router.post('/register/resend-otp', authController.resendOtp);
+
+router.post('/forgot-password/resend-otp', authController.resendForgotOtp);
+
 module.exports = router;

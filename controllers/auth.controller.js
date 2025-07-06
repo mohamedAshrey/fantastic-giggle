@@ -41,6 +41,7 @@ const requestRegistration = asyncWrapper(async (req, res, next) => {
         avatar: req.file ? req.file.filename : 'defaultPic.jpg',
         otp,
         expiresAt,
+        lastSentAt: Date.now(),
     });
 
     await transporter.sendMail({
@@ -76,7 +77,6 @@ const requestRegistration = asyncWrapper(async (req, res, next) => {
     res.json({ message: 'OTP sent to your email' });
 });
 
-// 2. Verify OTP and Create User
 const confirmRegistration = asyncWrapper(async (req, res, next) => {
     const { email, otp } = req.body;
 
@@ -125,6 +125,7 @@ const forgotPassword = asyncWrapper(async (req, res, next) => {
         otp,
         expiresAt,
         purpose: 'reset-password',
+        lastSentAt: Date.now(),
     });
 
     await transporter.sendMail({
@@ -228,10 +229,149 @@ const login = asyncWrapper(async (req, res, next) => {
     });
 });
 
+const resendOtp = asyncWrapper(async (req, res, next) => {
+    const { email } = req.body;
+
+    const pending = pendingRegistrations.get(email);
+
+    if (!pending) {
+        return next(
+            AppError.create(
+                'No pending registration found for this email',
+                404,
+                httpStatusText.FAIL
+            )
+        );
+    }
+
+    const now = Date.now();
+    const cooldown = 60 * 1000;
+
+    if (pending.lastSentAt && now - pending.lastSentAt < cooldown) {
+        const secondsLeft = Math.ceil((cooldown - (now - pending.lastSentAt)) / 1000);
+        return next(
+            AppError.create(
+                `Please wait ${secondsLeft}s before requesting another OTP`,
+                429,
+                httpStatusText.FAIL
+            )
+        );
+    }
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = Date.now() + 5 * 60 * 1000;
+
+    pending.otp = otp;
+    pending.expiresAt = expiresAt;
+    pendingRegistrations.set(email, pending);
+
+    await transporter.sendMail({
+        from: process.env.EMAIL_USER,
+        to: email,
+        subject: 'Your PowerPro Verification Code',
+        html: `
+            <table style="max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eee; border-radius: 8px; font-family: Arial, sans-serif; background-color: #ffffff;">
+                <tr>
+                    <td>
+                        <h2 style="color: #2e86de; text-align: center;">PowerPro</h2>
+                        <p style="font-size: 16px;">Hello <strong>${pending.firstName}</strong>,</p>
+                        <p style="font-size: 15px; line-height: 1.5;">
+                            You requested a new OTP.<br/>
+                            Please use the OTP below to verify your email address:
+                        </p>
+                        <div style="margin: 30px 0; text-align: center;">
+                            <span style="font-size: 24px; font-weight: bold; color: #ffffff; background-color: #2e86de; padding: 10px 20px; border-radius: 6px; display: inline-block; letter-spacing: 2px;">
+                                ${otp}
+                            </span>
+                        </div>
+                        <p style="font-size: 14px; color: #888;">This OTP will expire in <strong>5 minutes</strong>.</p>
+                        <p style="font-size: 13px; color: #999;">
+                            If you did not request this, please ignore this message.
+                        </p>
+                        <p style="margin-top: 30px;">Best regards,<br/><strong>PowerPro Team</strong></p>
+                    </td>
+                </tr>
+            </table>
+        `,
+    });
+
+    pending.lastSentAt = Date.now();
+    pendingRegistrations.set(email, pending);
+
+    res.json({ message: 'OTP re-sent to your email' });
+});
+
+const resendForgotOtp = asyncWrapper(async (req, res, next) => {
+    const { email } = req.body;
+
+    const pending = pendingRegistrations.get(email);
+
+    if (!pending || pending.purpose !== 'reset-password') {
+        return next(
+            AppError.create('No pending reset OTP found for this email', 404, httpStatusText.FAIL)
+        );
+    }
+
+    const now = Date.now();
+    const cooldown = 60 * 1000;
+
+    if (pending.lastSentAt && now - pending.lastSentAt < cooldown) {
+        const secondsLeft = Math.ceil((cooldown - (now - pending.lastSentAt)) / 1000);
+        return next(
+            AppError.create(
+                `Please wait ${secondsLeft}s before requesting another OTP`,
+                429,
+                httpStatusText.FAIL
+            )
+        );
+    }
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = Date.now() + 5 * 60 * 1000;
+
+    pending.otp = otp;
+    pending.expiresAt = expiresAt;
+    pendingRegistrations.set(email, pending);
+
+    await transporter.sendMail({
+        from: process.env.EMAIL_USER,
+        to: email,
+        subject: 'Password Reset Code From PowerPro',
+        html: `
+            <table style="max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eee; border-radius: 8px; font-family: Arial, sans-serif; background-color: #ffffff;">
+                <tr>
+                    <td>
+                        <h2 style="color: #2e86de; text-align: center;">PowerPro</h2>
+                        <p style="font-size: 15px; line-height: 1.5;">
+                            You requested a new OTP to reset your password.<br/>
+                            Please use the code below:
+                        </p>
+                        <div style="margin: 30px 0; text-align: center;">
+                            <span style="font-size: 24px; font-weight: bold; color: #ffffff; background-color: #2e86de; padding: 10px 20px; border-radius: 6px;">
+                                ${otp}
+                            </span>
+                        </div>
+                        <p style="font-size: 14px; color: #888;">This OTP will expire in <strong>5 minutes</strong>.</p>
+                        <p style="font-size: 13px; color: #999;">If you didn't request this, please ignore.</p>
+                        <p style="margin-top: 30px;">Best regards,<br/><strong>PowerPro Team</strong></p>
+                    </td>
+                </tr>
+            </table>
+        `,
+    });
+
+    pending.lastSentAt = Date.now();
+    pendingRegistrations.set(email, pending);
+
+    res.json({ message: 'OTP resent for password reset' });
+});
+
 module.exports = {
     requestRegistration,
     confirmRegistration,
     forgotPassword,
     resetPassword,
     login,
+    resendOtp,
+    resendForgotOtp,
 };
