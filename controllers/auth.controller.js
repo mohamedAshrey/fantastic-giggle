@@ -5,6 +5,7 @@ const AppError = require('../utils/appError');
 const httpStatusText = require('../utils/httpStatusText');
 const User = require('../models/users.model');
 const userRoles = require('../utils/userRoles');
+const generateJwt = require('../utils/generate.jwt');
 
 const pendingRegistrations = new Map();
 
