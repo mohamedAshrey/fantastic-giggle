@@ -108,7 +108,7 @@ const confirmRegistration = asyncWrapper(async (req, res, next) => {
     res.status(201).json({ message: 'Registration complete', token });
 });
 
-const forgotPassword = asyncWrapper(async (req, res, next) => {
+const forgetPassword = asyncWrapper(async (req, res, next) => {
     const { email } = req.body;
 
     const user = await User.findOne({ email });
@@ -302,7 +302,7 @@ const resendOtp = asyncWrapper(async (req, res, next) => {
     res.json({ message: 'OTP re-sent to your email' });
 });
 
-const resendForgotOtp = asyncWrapper(async (req, res, next) => {
+const resendForgetOtp = asyncWrapper(async (req, res, next) => {
     const { email } = req.body;
 
     const pending = pendingRegistrations.get(email);
@@ -370,10 +370,10 @@ const resendForgotOtp = asyncWrapper(async (req, res, next) => {
 module.exports = {
     requestRegistration,
     confirmRegistration,
-    forgotPassword,
+    forgetPassword,
     resetPassword,
     login,
     resendOtp,
-    resendForgotOtp,
+    resendForgetOtp,
     verifyOtp,
 };
