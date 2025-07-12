@@ -25,6 +25,7 @@ const energyRouters = require('./routes/energySource.route');
 const tipsRouters = require('./routes/tips.route');
 const videoRouters = require('./routes/video.route');
 const homeRouter = require('./routes/home.route');
+const testRoutes = require('./routes/test.route');
 
 app.use('/api/users', usersRouters);
 app.use('/api/energy/blogs', blogsRouters);
@@ -35,6 +36,7 @@ app.use('/api/energy/tips', tipsRouters);
 app.use('/api/energy/videos', videoRouters);
 app.use('/api/energy/videos', videoRouters);
 app.use('/api/home', homeRouter);
+app.use('/test', testRoutes);
 
 app.all('*', (req, res, next) => {
     return res.status(404).json({

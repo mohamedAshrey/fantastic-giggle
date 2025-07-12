@@ -1,8 +1,6 @@
 const bcrypt = require('bcryptjs');
 const nodemailer = require('nodemailer');
-
 const asyncWrapper = require('../middlewares/asyncWrapper');
-const generateJwt = require('../utils/generate.jwt');
 const AppError = require('../utils/appError');
 const httpStatusText = require('../utils/httpStatusText');
 const User = require('../models/users.model');
@@ -159,8 +157,8 @@ const forgotPassword = asyncWrapper(async (req, res, next) => {
     res.json({ message: 'OTP sent to your email' });
 });
 
-const resetPassword = asyncWrapper(async (req, res, next) => {
-    const { email, otp, newPassword } = req.body;
+const verifyOtp = asyncWrapper(async (req, res, next) => {
+    const { email, otp } = req.body;
 
     const pending = pendingRegistrations.get(email);
     if (
@@ -171,15 +169,18 @@ const resetPassword = asyncWrapper(async (req, res, next) => {
     ) {
         return next(AppError.create('Invalid or expired OTP', 400, httpStatusText.FAIL));
     }
+    res.json({ message: 'OTP is valid. You can now reset your password.' });
+});
+
+const resetPassword = asyncWrapper(async (req, res, next) => {
+    const { email, newPassword } = req.body;
 
     const user = await User.findOne({ email });
     if (!user) {
         return next(AppError.create('User not found', 404, httpStatusText.FAIL));
     }
-
     user.password = await bcrypt.hash(newPassword, 10);
     await user.save();
-    pendingRegistrations.delete(email);
 
     res.json({ message: 'Password reset successful' });
 });
@@ -374,4 +375,5 @@ module.exports = {
     login,
     resendOtp,
     resendForgotOtp,
+    verifyOtp,
 };

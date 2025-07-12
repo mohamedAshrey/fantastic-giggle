@@ -1,6 +1,5 @@
 const express = require('express');
 const router = express.Router();
-
 const multer = require('multer');
 
 const diskStorage = multer.diskStorage({
@@ -35,13 +34,15 @@ router.post('/register/request', upload.single('avatar'), authController.request
 
 router.post('/register/confirm', authController.confirmRegistration);
 
+router.post('/register/resend-otp', authController.resendOtp);
+
 router.post('/login', authController.login);
 
 router.post('/forgot-password', authController.forgotPassword);
 
-router.post('/reset-password', authController.resetPassword);
+router.post('/forgetPass/verify-otp', authController.verifyOtp);
 
-router.post('/register/resend-otp', authController.resendOtp);
+router.post('/reset-password', authController.resetPassword);
 
 router.post('/forgot-password/resend-otp', authController.resendForgotOtp);
 
